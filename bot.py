@@ -7,6 +7,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Порт для Render
+PORT = int(os.environ.get('PORT', 10000))
+
 # Команды бота
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -101,28 +104,41 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 def main():
-    # Получаем токен из переменной окружения
+    # Получаем токен
     TOKEN = os.environ.get('TELEGRAM_TOKEN')
     if not TOKEN:
         logger.error("Токен не найден!")
         return
     
+    # URL приложения на Render
+    APP_NAME = os.environ.get('RENDER_EXTERNAL_URL', '')
+    if APP_NAME:
+        APP_NAME = APP_NAME.replace('https://', '')
+    
     # Создаём приложение
     application = Application.builder().token(TOKEN).build()
     
-    # Добавляем обработчики команд
+    # Добавляем обработчики
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("services", services))
     application.add_handler(CommandHandler("contact", contact))
     application.add_handler(CommandHandler("about", about))
     application.add_handler(CommandHandler("location", location))
     application.add_handler(CommandHandler("booking", booking))
-    
-    # Обработчик обычных сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # Запускаем бота
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Запускаем webhook для Render
+    if APP_NAME:
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=TOKEN,
+            webhook_url=f"https://{APP_NAME}/{TOKEN}"
+        )
+    else:
+        # Для локального тестирования
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
+
